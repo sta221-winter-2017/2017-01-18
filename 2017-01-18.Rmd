@@ -1,0 +1,267 @@
+---
+title: "STA221"
+author: "Neil Montgomery"
+date: "Last edited: `r format(Sys.time(), '%Y-%m-%d %H:%M')`"
+output: 
+  beamer_presentation:
+    keep_tex: TRUE
+    incremental: TRUE
+    df_print: tibble
+    fig_caption: FALSE
+classoption: aspectratio=169
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE,
+                      dev='pdf', fig.width=4, fig.asp=0.618, fig.align='center')
+options(tibble.width=70, scipen = 999)
+library(tidyverse)
+library(readxl)
+```
+
+# applications of $\chi^2$ goodness-of-fit testing to two-way tables
+
+## contingency tables
+
+Recall the gas pipelines data:
+
+```{r}
+gas <- read_excel("pipeline.xlsx", col_types = rep("text", 4))
+gas <- gas %>% 
+  mutate(Leak=factor(Leak), Size=factor(Size, levels=c("1","1.5","1.75"), ordered=TRUE),
+         Material=factor(Material), Pressure=factor(Pressure, levels=c("Low", "Med", "High"), ordered=TRUE))
+gas
+```
+
+The (only?) suitable numerical summary for two categorical/factor variables at a time is a so-called contingency table, or two-way table.
+
+## two-way table for "Leak" and "Pressure"
+
+(Technically the two-way table doesn't include the Sum row and column.)
+
+```{r, results='asis'}
+library(xtable)
+addtorow <- list()
+addtorow$pos <- list(0, 0)
+addtorow$command <- c("& \\multicolumn{3}{c}{Pressure} & \\\\\n",
+"Leak & Low & Medium & High & Sum \\\\\n")
+
+print(xtable(addmargins(table(gas$Leak, gas$Pressure)), digits = 0),
+      comment = FALSE, add.to.row=addtorow, include.colnames=FALSE)
+```
+
+## the two questions
+
+Question 1: do the rows (or columns) come from the *same* distribution?
+
+\pause This question is answered using a *test of homogeneity*.
+
+\pause Question 2: are the rows and columns *independent*?
+
+\pause This question is answered using a *test of independence*.
+
+\pause ***The mechanics of both tests are identical. Only the interpretation is (slightly) different.***
+
+## two-way table again
+
+Count version:
+
+```{r, results='asis'}
+library(xtable)
+print(xtable(addmargins(table(gas$Leak, gas$Pressure)), digits = 0),
+      comment = FALSE, add.to.row=addtorow, include.colnames=FALSE)
+```
+
+Proportion version. The six proportions at each combination of level of the two factor variables is the *joint distribution* of those two variables.
+
+```{r, results='asis'}
+library(xtable)
+print(xtable(addmargins(prop.table(table(gas$Leak, gas$Pressure))), digits = 3),
+      comment = FALSE, add.to.row=addtorow, include.colnames=FALSE)
+```
+
+## the marginal distrbutions
+
+```{r, results='asis'}
+library(xtable)
+print(xtable(addmargins(prop.table(table(gas$Leak, gas$Pressure))), digits = 3),
+      comment = FALSE, add.to.row=addtorow, include.colnames=FALSE)
+```
+
+The *marginal* distributions of `Pressure` and `Leak` are:
+```{r, results='asis'}
+print(xtable(t(as.table(addmargins(prop.table(table(gas$Leak, gas$Pressure)), 1)[3,])), digits= 3), comment=FALSE, include.rownames = FALSE)
+print(xtable(t(as.table(addmargins(prop.table(table(gas$Leak, gas$Pressure)), 2)[,4])), digits= 3), comment=FALSE, include.rownames = FALSE)
+
+```
+
+## the conditional distributions
+
+There are lots of conditional distributions. For example, the conditional distributions for the `Pressure` *given* `Leak` equals `No` and *given* `Leak` equals `Yes` are in the two rows of this table:
+
+```{r, results='asis'}
+print(xtable(prop.table(table(gas$Leak, gas$Pressure), margin = 1), digits=3),
+      comment=FALSE)
+```
+
+The conditional distributions for `Leak` given `Pressure` is equal to, respectively, `Low`, `Med`, and `High`, are in these three columns:
+
+```{r, results='asis'}
+print(xtable(prop.table(table(gas$Leak, gas$Pressure), margin = 2), digits=3),
+      comment=FALSE)
+```
+
+## diversion - if the marginal totals are *fixed*...
+
+At some point there will be a "degrees of freedom" to consider, so let's do it now.
+
+In all $\chi^2$ goodness-of-fit tests, **the overall sample sizes are considered to be *fixed***. This includes all the row and column totals in these two-way table analyses.
+
+Consider the following table with fixed "marginal" totals. How many cells am I "free" to play around with?
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{r|r|r|r|r}
+  \hline
+  & \multicolumn{3}{c}{Factor A} & \\
+ Factor B & 1 & 2 & 3 & Sum \\
+ \hline
+1 &  &  &  & 10 \\ \hline
+2 &  &  &  & 20 \\ \hline
+Sum & 5 & 10 & 15 & 30 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+\pause Answer: only **two**. With fixed marginal totals I have two "degrees of freedom". The formula is $(r-1)(c-1)$ when there are $r$ rows and $c$ columns.
+
+## $\chi^2$ test of homegeneity
+
+Do the rows (or columns) come from the *same* distribution? 
+
+Specifically: do the rows (or columns) have the *same conditional disributions*?
+
+\pause Let's compare the rows from before. They look pretty close, but not identical. 
+
+```{r, results='asis'}
+print(xtable(prop.table(table(gas$Leak, gas$Pressure), margin = 1), digits=3),
+      comment=FALSE)
+```
+
+\pause The null hypothesis is "$H_0$: The rows have the same (conditional) distributions", and we keep all the marginal totals fixed.
+
+## some technical details...
+
+Let's get rid of the numbers from the tables and use some more general symbols.
+
+The conditional distributions, which $H_0$ says are the same: 
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrr}
+  \hline
+ & 1 & 2 & 3 \\ 
+  \hline
+1 & $p_{11}$ & $p_{12}$ & $p_{13}$ \\ 
+2 & $p_{21}$ &$p_{22}$ & $p_{23}$  \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+The counts, given *fixed* marginal totals:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrr}
+  \hline
+ & 1 & 2 & 3 & Sum\\ 
+  \hline
+1 & $n_{11}$ & $n_{12}$ & $n_{13}$ & $n_{1.}$ \\ 
+2 & $n_{21}$ &$n_{22}$ & $n_{23}$  & $n_{2.}$\\ 
+Sum & $n_{.1}$ & $n_{.2}$ & $n_{.3}$ & $n_{..}$\\
+   \hline
+\end{tabular}
+\end{table}
+
+## the expected cell counts $E_{ij}$, under the null hypothesis
+
+So we end up with:
+\begin{align*}
+E_{11} &= \frac{n_{1.}\cdot n_{.1}}{n_{..}}\\
+\\
+\onslide<2->{E_{ij} &= \frac{n_{i.}\cdot n_{.j}}{n_{..}}\\}
+\end{align*}
+
+\pause The counts we actually observe are called $O_{ij}$. We evaluate the deviation from $H_0$ using the formula:
+$$\chi^2_{obs} = \sum\limits_{i,j} \frac{\left(O_{ij} - E_{ij}\right)^2}{E_{ij}}$$
+
+## getting the p-value
+
+No surprise that this sum of squares has a $\chi^2$ distributions. But with how many degrees of freedom?
+
+\pause $(r-1)(c-1),$ where $r$ and $c$ are the numbers of rows and columns.
+
+\pause In the example, the observed and expected cell counts are:
+
+\begin{columns}
+    \begin{column}{0.5\textwidth}
+      \centering
+```{r, results='asis'}
+print(xtable(addmargins(with(gas, chisq.test(Leak, Pressure))$observed), digits=0), comment=FALSE)
+```
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \centering
+```{r, results='asis'}
+print(xtable(addmargins(with(gas, chisq.test(Leak, Pressure))$expected), digits=2), comment=FALSE)
+```
+    \end{column}
+\end{columns}
+
+## the full analysis
+
+```{r}
+(lp_hom <- with(gas, chisq.test(Leak, Pressure)))
+```
+
+$$P(\chi^2_2 \ge `r lp_hom$statistic`) = `r lp_hom$p.value`$$
+
+There is no evidence against the null hypothesis. 
+
+## example (Q23.14 from book)
+
+All non-editorial publications from the NEJM were classified according to `Publication Year` and whether or not it contained a statistical analysis. 
+
+```{r, results='asis'}
+yrs <- factor(c("1978-79", "1989", "2004-05"))
+sts <- factor(c("No Stats", "Stats"))
+doctor_know_counts <- data.frame(cbind(expand.grid(Statistics=sts, 
+                                            `Publication Year` = yrs), 
+                 Counts=c(90, 242, 14, 101, 40, 271)), check.names = FALSE)
+doctor_know <- xtabs(Counts ~ Statistics + `Publication Year`, doctor_know_counts)
+print(xtable(addmargins(doctor_know), digits=0), comment=FALSE)
+```
+
+Question: "Has there been a change in the use of statistics?"
+
+## example (Q23.14 from book)
+
+Expected cell counts:
+
+```{r}
+doctor_know_chisq <- chisq.test(doctor_know)
+round(addmargins(doctor_know_chisq$expected), 2)
+```
+
+\pause Results:
+
+```{r}
+doctor_know_chisq
+```
+
+## what's left to do?
+
+* the test for independence,
+
+* consider requirements and assumptions in order for these procedures to work,
+
+* informal post-test assessments of the results
